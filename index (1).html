@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Banana Farm — Earn &amp; Withdraw</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #1a1610;
+    --surface: #241f16;
+    --surface-2: #2e2819;
+    --border: #3d3521;
+    --gold: #ffce45;
+    --gold-soft: rgba(255,206,69,0.16);
+    --teal: #8bc34a;
+    --teal-soft: rgba(139,195,74,0.16);
+    --coral: #ef6f6c;
+    --text: #fbf5e6;
+    --muted: #a89f86;
+    --muted-2: #6b6350;
+    --radius: 18px;
+    --radius-sm: 12px;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background: radial-gradient(120% 100% at 50% 0%, #241f14 0%, #1a1610 55%, #12100a 100%);
+    color: var(--text);
+    font-family: var(--font-body);
+    overscroll-behavior-y: none;
+  }
+  #app{
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    padding-bottom: 84px;
+  }
+
+  /* ---------- Header ---------- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 18px 20px 6px;
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px;
+    font-family: var(--font-display);
+    font-weight:700; font-size:17px; letter-spacing:0.2px;
+  }
+  .brand .dot{
+    width:26px; height:26px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-size:15px;
+    background: linear-gradient(135deg, var(--gold), #ffd98a);
+    box-shadow: 0 0 12px rgba(255,206,69,0.5);
+  }
+  .streak-pill{
+    display:flex; align-items:center; gap:6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gold);
+  }
+
+  /* ---------- Sections ---------- */
+  .screen{ display:none; padding: 4px 20px 20px; animation: fade .25s ease; }
+  .screen.active{ display:block; }
+  @keyframes fade{ from{opacity:0; transform: translateY(6px);} to{opacity:1; transform:none;} }
+
+  h1.page-title{
+    font-family: var(--font-display);
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--muted);
+    margin: 18px 2px 12px;
+    font-weight: 600;
+  }
+
+  /* ---------- Balance hero ---------- */
+  .balance-card{
+    position: relative;
+    border-radius: 24px;
+    padding: 26px 22px 22px;
+    background:
+      radial-gradient(120% 140% at 100% 0%, rgba(255,206,69,0.16), transparent 60%),
+      linear-gradient(160deg, var(--surface) 0%, #211c3a 100%);
+    border: 1px solid var(--border);
+    overflow:hidden;
+  }
+  .balance-card::after{
+    content:"";
+    position:absolute; right:-30px; top:-30px;
+    width:140px; height:140px; border-radius:50%;
+    background: radial-gradient(circle, rgba(255,206,69,0.25), transparent 70%);
+  }
+  .balance-label{ font-size: 12.5px; color: var(--muted); font-weight:600; letter-spacing:.3px;}
+  .balance-value{
+    font-family: var(--font-display);
+    font-size: 42px; font-weight: 700; margin: 6px 0 2px;
+    display:flex; align-items:baseline; gap:8px;
+  }
+  .balance-value .unit{ font-size:16px; color: var(--gold); font-weight:600;}
+  .balance-sub{ font-size:12.5px; color: var(--teal); font-weight:600;}
+  .balance-actions{ display:flex; gap:10px; margin-top:18px; }
+  .btn{
+    border:none; cursor:pointer; font-family: var(--font-body);
+    font-weight:600; font-size:14px; border-radius: var(--radius-sm);
+    padding: 12px 16px; transition: transform .12s ease, opacity .12s ease;
+  }
+  .btn:active{ transform: scale(0.97); }
+  .btn-primary{ background: linear-gradient(135deg, var(--gold), #e2a233); color:#241a05; flex:1; }
+  .btn-ghost{ background: var(--surface-2); color: var(--text); border:1px solid var(--border); flex:1; }
+  .btn-block{ width:100%; }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+  /* ---------- Stat grid ---------- */
+  .stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+  .feature-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+  .feature-tile{
+    background: var(--surface); border:1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 14px; display:flex; align-items:center; gap:11px;
+    cursor:pointer; transition: transform .12s ease, border-color .12s ease;
+  }
+  .feature-tile:active{ transform: scale(0.97); }
+  .feature-icon{
+    width:38px; height:38px; min-width:38px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+    font-size:17px;
+  }
+  .feature-label{ font-size:13.5px; font-weight:600; color: var(--text); }
+  .stat-box{
+    background: var(--surface); border:1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 14px;
+  }
+  .stat-box .k{ font-size:11.5px; color:var(--muted); font-weight:600; }
+  .stat-box .v{ font-family:var(--font-display); font-size:20px; font-weight:700; margin-top:4px;}
+
+  /* ---------- Generic list card ---------- */
+  .card{
+    background: var(--surface); border:1px solid var(--border);
+    border-radius: var(--radius); padding: 15px 16px;
+    display:flex; align-items:center; gap:13px;
+    margin-bottom: 10px;
+  }
+  .icon-badge{
+    width:42px; height:42px; min-width:42px; border-radius: 12px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .card-body{ flex:1; min-width:0; }
+  .card-title{ font-size:14.5px; font-weight:600; }
+  .card-sub{ font-size:12px; color: var(--muted); margin-top:2px; }
+  .reward-tag{
+    font-size: 12px; font-weight:700; color: var(--gold);
+    background: var(--gold-soft); padding: 5px 9px; border-radius: 8px; white-space:nowrap;
+  }
+
+  /* ---------- Ads screen ---------- */
+  .limit-note{
+    display:flex; align-items:center; justify-content:space-between;
+    background: var(--surface-2); border:1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 11px 14px; margin-bottom:14px;
+    font-size: 12.5px; color: var(--muted);
+  }
+  .limit-note b{ color: var(--text); }
+  .ring-wrap{ position:relative; width:42px; height:42px; }
+  .ring-wrap svg{ transform: rotate(-90deg); }
+  .ring-wrap .ring-bg{ stroke: var(--border); }
+  .ring-wrap .ring-fg{ stroke: var(--gold); stroke-linecap:round; transition: stroke-dashoffset .4s ease;}
+
+  /* ---------- Task screen ---------- */
+  .tab-strip{
+    display:flex; gap:8px; margin-bottom:14px;
+    overflow-x:auto; scrollbar-width:none;
+  }
+  .tab-strip::-webkit-scrollbar{ display:none; }
+  .tab-chip{
+    flex:1; white-space:nowrap;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    background: var(--surface); border:1px solid var(--border); color: var(--muted);
+    font-family: var(--font-body); font-weight:600; font-size:13px;
+    padding: 10px 14px; border-radius: 999px; cursor:pointer;
+    transition: all .15s ease;
+  }
+  .tab-chip.active{
+    background: var(--gold-soft); border-color: var(--gold); color: var(--gold);
+  }
+  .tab-count{
+    font-size:10.5px; font-weight:700; min-width:16px; text-align:center;
+    background: rgba(255,255,255,0.08); border-radius:999px; padding:1px 5px;
+  }
+  .tab-chip.active .tab-count{ background: rgba(255,206,69,0.25); }
+  .category-empty{ text-align:center; color: var(--muted-2); font-size:12.5px; padding: 26px 0; }
+
+  .task-check{
+    width:24px; height:24px; border-radius:50%; border:2px solid var(--muted-2);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    transition: all .15s ease;
+  }
+  .task-check.done{ background: var(--teal); border-color: var(--teal); }
+  .task-check svg{ width:13px; height:13px; opacity:0; transition:opacity .15s ease; }
+  .task-check.done svg{ opacity:1; }
+
+  /* ---------- Invite screen ---------- */
+  .invite-hero{
+    text-align:center; padding: 22px 16px 20px; border-radius:22px;
+    background: linear-gradient(160deg, var(--surface), #241f3f);
+    border: 1px solid var(--border); margin-bottom:16px;
+  }
+  .invite-hero .big-users{
+    font-family: var(--font-display); font-size: 32px; font-weight:700; color: var(--gold);
+  }
+  .code-row{
+    display:flex; align-items:center; gap:8px; margin-top:16px;
+    background: var(--bg); border:1px dashed var(--muted-2);
+    border-radius: var(--radius-sm); padding: 12px 14px;
+  }
+  .code-row span{
+    font-family: var(--font-body); font-weight:700; font-size:13px; flex:1; text-align:left;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;
+  }
+  .copy-btn{ background: var(--gold-soft); color: var(--gold); border:none; border-radius:8px; padding:8px 12px; font-weight:700; font-size:12px; cursor:pointer;}
+  .friend-row{ display:flex; align-items:center; gap:11px; padding:11px 2px; border-bottom:1px solid var(--border); }
+  .friend-row:last-child{ border-bottom:none; }
+  .avatar{
+    width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:700; color:#241a05;
+    background: linear-gradient(135deg, var(--gold), #ffd98a);
+    flex-shrink:0;
+  }
+
+  /* ---------- Withdraw screen ---------- */
+  .field-label{ font-size:12.5px; color: var(--muted); font-weight:600; margin: 14px 2px 7px; }
+  .amount-input-wrap{
+    display:flex; align-items:center; background: var(--surface); border:1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 4px 14px;
+  }
+  .amount-input-wrap span{ color: var(--gold); font-weight:700; font-family:var(--font-display); }
+  .amount-input-wrap input{
+    flex:1; background:none; border:none; outline:none; color: var(--text);
+    font-family: var(--font-display); font-size:22px; font-weight:700; padding: 12px 8px;
+    -moz-appearance: textfield;
+  }
+  .amount-input-wrap input::-webkit-outer-spin-button,
+  .amount-input-wrap input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .method-fixed{
+    background: var(--gold-soft); border:1px solid var(--gold); border-radius: var(--radius-sm);
+    padding: 13px 14px; display:flex; align-items:center; gap:12px;
+  }
+  .method-fixed-icon{
+    width:36px; height:36px; min-width:36px; border-radius:10px;
+    background: linear-gradient(135deg, var(--gold), #ffd98a);
+    color:#241a05; font-weight:800; font-size:17px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .hist-row{ display:flex; align-items:center; justify-content:space-between; padding: 11px 2px; border-bottom:1px solid var(--border); font-size:13px;}
+  .hist-row:last-child{ border-bottom:none; }
+  .status-pill{ font-size:10.5px; font-weight:700; padding: 4px 8px; border-radius:6px; text-transform:uppercase; letter-spacing:.3px;}
+  .status-pending{ background: rgba(255,206,69,0.15); color: var(--gold); }
+  .status-paid{ background: var(--teal-soft); color: var(--teal); }
+  .empty-hist{ text-align:center; color: var(--muted-2); font-size:12.5px; padding: 18px 0; }
+
+  /* ---------- Toast ---------- */
+  #toast{
+    position: fixed; left:50%; bottom: 96px; transform: translateX(-50%) translateY(20px);
+    background: #241f3f; border:1px solid var(--border); color: var(--text);
+    padding: 11px 18px; border-radius: 999px; font-size:13px; font-weight:600;
+    opacity:0; pointer-events:none; transition: all .25s ease; z-index:50;
+    max-width: 88%; text-align:center; box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  }
+  #toast.show{ opacity:1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- Modal / bottom sheet ---------- */
+  .modal-overlay{
+    position: fixed; inset:0; background: rgba(8,6,16,0.65);
+    display:flex; align-items:flex-end; justify-content:center;
+    opacity:0; pointer-events:none; transition: opacity .2s ease; z-index: 60;
+  }
+  .modal-overlay.show{ opacity:1; pointer-events:auto; }
+  .modal-sheet{
+    width:100%; max-width:480px; background: var(--bg-modal, #1a1630);
+    border:1px solid var(--border); border-bottom:none;
+    border-radius: 24px 24px 0 0; padding: 20px 22px calc(24px + env(safe-area-inset-bottom));
+    transform: translateY(24px); transition: transform .22s ease;
+  }
+  .modal-overlay.show .modal-sheet{ transform: translateY(0); }
+  .modal-sheet-tall{ max-height: 82vh; overflow-y: auto; }
+  .modal-handle{ width:36px; height:4px; border-radius:2px; background: var(--border); margin: 0 auto 16px; }
+  .modal-title{ font-family: var(--font-display); font-size:18px; font-weight:700; margin-bottom:4px; }
+  .modal-sub{ font-size:12.5px; color: var(--muted); margin-bottom:16px; }
+  .modal-input{
+    width:100%; background: var(--surface); border:1px solid var(--border); color: var(--text);
+    border-radius: var(--radius-sm); padding: 13px 14px; font-size:15px; font-weight:600;
+    outline:none; font-family: var(--font-body); text-transform: uppercase; letter-spacing:1px;
+  }
+  .modal-close{
+    position:absolute; top:16px; right:18px; background: var(--surface-2); border:1px solid var(--border);
+    color: var(--muted); width:30px; height:30px; border-radius:50%; font-size:15px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  /* ---------- Spin wheel ---------- */
+  .wheel-wrap{ display:flex; flex-direction:column; align-items:center; padding: 6px 0 4px; }
+  .wheel-pointer{ width:0; height:0; border-left:9px solid transparent; border-right:9px solid transparent; border-top:14px solid var(--gold); margin-bottom:-4px; z-index:2; }
+  .wheel{
+    width:220px; height:220px; border-radius:50%; position:relative;
+    border:6px solid var(--surface-2); box-shadow: 0 0 0 2px var(--border);
+    transition: transform 3.2s cubic-bezier(0.17, 0.89, 0.32, 1.15);
+  }
+  .wheel-center{
+    position:absolute; top:50%; left:50%; width:44px; height:44px; border-radius:50%;
+    transform: translate(-50%,-50%); background: linear-gradient(135deg, var(--gold), #ffd98a);
+    display:flex; align-items:center; justify-content:center; font-size:18px; z-index:3;
+    box-shadow: 0 0 0 4px var(--bg);
+  }
+  .wheel-label{
+    position:absolute; top:14px; left:50%; transform-origin: 0 96px;
+    font-size:12px; font-weight:700; color:#241a05;
+  }
+
+  /* ---------- Game hub & mini-games ---------- */
+  .game-back{
+    display:flex; align-items:center; gap:6px; background:none; border:none;
+    color: var(--muted); font-weight:600; font-size:13px; cursor:pointer; padding: 0 0 14px; font-family: var(--font-body);
+  }
+  .game-status{ text-align:center; font-size:13.5px; font-weight:600; color: var(--text); margin: 4px 0 14px; min-height: 18px; }
+  .game-status.win{ color: var(--teal); }
+  .game-status.lose{ color: var(--coral); }
+
+  /* Tic Tac Toe */
+  .ttt-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; max-width:260px; margin:0 auto; }
+  .ttt-cell{
+    aspect-ratio:1; background: var(--surface); border:1px solid var(--border); border-radius: 12px;
+    display:flex; align-items:center; justify-content:center; font-family:var(--font-display);
+    font-size:26px; font-weight:700; cursor:pointer; color: var(--gold);
+  }
+  .ttt-cell.o{ color: var(--teal); }
+  .ttt-cell:empty{ cursor:pointer; }
+
+  /* Mines */
+  .mines-topline{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .mines-potential{ font-family: var(--font-display); font-size:18px; font-weight:700; color: var(--gold); }
+  .mines-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:7px; max-width:280px; margin:0 auto 16px; }
+  .mine-cell{
+    aspect-ratio:1; background: var(--surface); border:1px solid var(--border); border-radius: 10px;
+    display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer;
+  }
+  .mine-cell.safe{ background: var(--teal-soft); border-color: var(--teal); cursor:default; }
+  .mine-cell.boom{ background: rgba(239,111,108,0.18); border-color: var(--coral); cursor:default; }
+  .mine-cell.disabled{ pointer-events:none; opacity:.6; }
+
+  /* ---------- Bottom nav ---------- */
+  .navbar{
+    position: fixed; left:0; right:0; bottom:0;
+    max-width:480px; margin:0 auto;
+    background: rgba(28,24,48,0.92);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border);
+    display:flex; padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+    z-index: 40;
+  }
+  .nav-btn{
+    flex:1; background:none; border:none; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding: 6px 2px; color: var(--muted-2); font-size: 10.5px; font-weight:600;
+    font-family: var(--font-body);
+  }
+  .nav-btn svg{ width:21px; height:21px; }
+  .nav-btn.active{ color: var(--gold); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="topbar">
+    <div class="brand"><span class="dot">🍌</span>Banana Farm</div>
+    <div class="streak-pill">🔥 <span id="streakCount">4</span>-day streak</div>
+  </div>
+
+  <!-- ================= HOME ================= -->
+  <section class="screen active" id="screen-home">
+    <div class="balance-card">
+      <div class="balance-label">Your balance</div>
+      <div class="balance-value"><span id="homeBalance">0</span><span class="unit">bananas</span></div>
+      <div class="balance-sub">+<span id="todayEarned">0</span> earned today</div>
+      <div class="balance-actions">
+        <button class="btn btn-primary" onclick="goTo('withdraw')">Withdraw</button>
+        <button class="btn btn-ghost" onclick="goTo('invite')">Invite &amp; earn</button>
+      </div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-tile" onclick="openGameModal()">
+        <div class="feature-icon" style="background:rgba(239,111,108,0.15);">🎮</div>
+        <div class="feature-label">Game</div>
+      </div>
+      <div class="feature-tile" onclick="goTo('task')">
+        <div class="feature-icon" style="background:var(--gold-soft);">🍌</div>
+        <div class="feature-label">Earn</div>
+      </div>
+      <div class="feature-tile" onclick="openPromoModal()">
+        <div class="feature-icon" style="background:var(--teal-soft);">🎟️</div>
+        <div class="feature-label">Promo Code</div>
+      </div>
+      <div class="feature-tile" onclick="openSpinModal()">
+        <div class="feature-icon" style="background:rgba(139,132,255,0.18);">🎡</div>
+        <div class="feature-label">Spin Wheel</div>
+      </div>
+    </div>
+
+    <h1 class="page-title">Quick actions</h1>
+    <div class="card" onclick="goTo('ads')" style="cursor:pointer;">
+      <div class="icon-badge" style="background:var(--gold-soft);">▶️</div>
+      <div class="card-body">
+        <div class="card-title">Watch an ad</div>
+        <div class="card-sub">Quick 15–30s videos</div>
+      </div>
+      <div class="reward-tag">+20</div>
+    </div>
+    <div class="card" onclick="goTo('task')" style="cursor:pointer;">
+      <div class="icon-badge" style="background:var(--teal-soft);">✅</div>
+      <div class="card-body">
+        <div class="card-title">Complete daily tasks</div>
+        <div class="card-sub">Check-ins, joins &amp; more</div>
+      </div>
+      <div class="reward-tag">+120</div>
+    </div>
+  </section>
+
+  <!-- ================= ADS ================= -->
+  <section class="screen" id="screen-ads">
+    <h1 class="page-title">Watch &amp; earn</h1>
+    <div class="limit-note">
+      <span>Daily limit: <b><span id="adsWatchedLbl">0</span>/<span id="adsLimitLbl">10</span></b> ads watched</span>
+      <div class="ring-wrap">
+        <svg width="42" height="42" viewBox="0 0 42 42">
+          <circle class="ring-bg" cx="21" cy="21" r="17" stroke-width="4" fill="none"/>
+          <circle id="adRing" class="ring-fg" cx="21" cy="21" r="17" stroke-width="4" fill="none"
+            stroke-dasharray="106.8" stroke-dashoffset="106.8"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="icon-badge" style="background:var(--gold-soft);">🎬</div>
+      <div class="card-body">
+        <div class="card-title">Short video ad</div>
+        <div class="card-sub" id="adTimerLabel">~15 seconds · instant reward</div>
+      </div>
+      <div class="reward-tag">+20</div>
+    </div>
+    <button class="btn btn-primary btn-block" id="watchAdBtn" onclick="watchAd()">Watch ad</button>
+
+    <h1 class="page-title">More ways to earn</h1>
+    <div class="card">
+      <div class="icon-badge" style="background:var(--teal-soft);">🎮</div>
+      <div class="card-body">
+        <div class="card-title">Playable ad</div>
+        <div class="card-sub">Try a mini game for 30s</div>
+      </div>
+      <div class="reward-tag">+35</div>
+    </div>
+    <div class="card">
+      <div class="icon-badge" style="background:rgba(239,111,108,0.15);">📺</div>
+      <div class="card-body">
+        <div class="card-title">Offer wall</div>
+        <div class="card-sub">Bigger rewards, longer tasks</div>
+      </div>
+      <div class="reward-tag">+50–300</div>
+    </div>
+  </section>
+
+  <!-- ================= TASK ================= -->
+  <section class="screen" id="screen-task">
+    <h1 class="page-title">Today's tasks</h1>
+    <div class="tab-strip" id="taskTabs">
+      <button class="tab-chip active" data-cat="official" onclick="selectTaskCategory('official')">
+        Official <span class="tab-count" id="cnt-official">0</span>
+      </button>
+      <button class="tab-chip" data-cat="bot" onclick="selectTaskCategory('bot')">
+        Bot <span class="tab-count" id="cnt-bot">0</span>
+      </button>
+      <button class="tab-chip" data-cat="partner" onclick="selectTaskCategory('partner')">
+        Partner <span class="tab-count" id="cnt-partner">0</span>
+      </button>
+    </div>
+    <div id="taskList"></div>
+  </section>
+
+  <!-- ================= INVITE ================= -->
+  <section class="screen" id="screen-invite">
+    <div class="invite-hero">
+      <div class="card-sub" style="margin-bottom:6px;">Invited friends</div>
+      <div class="big-users" id="inviteFriendsCount">3</div>
+      <div class="card-sub" style="margin-top:6px;">Earn <b style="color:var(--text)">50 bananas</b> per friend who joins, plus 10% of what they earn.</div>
+      <div class="code-row">
+        <span id="refCode">t.me/Bananafarmapp_bot?start=ref_000000</span>
+        <button class="copy-btn" onclick="copyCode()">Copy</button>
+      </div>
+      <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="shareInvite()">Share invite link</button>
+    </div>
+
+    <h1 class="page-title">Your invites</h1>
+    <div class="card" style="flex-direction:column; align-items:stretch;">
+      <div class="friend-row"><div class="avatar">AK</div><div class="card-body"><div class="card-title">Arjun K.</div><div class="card-sub">Joined 3 days ago</div></div><div class="reward-tag">+50</div></div>
+      <div class="friend-row"><div class="avatar">SM</div><div class="card-body"><div class="card-title">Sana M.</div><div class="card-sub">Joined yesterday</div></div><div class="reward-tag">+50</div></div>
+      <div class="friend-row"><div class="avatar">RT</div><div class="card-body"><div class="card-title">Rahul T.</div><div class="card-sub">Joined today</div></div><div class="reward-tag">+50</div></div>
+    </div>
+  </section>
+
+  <!-- ================= WITHDRAW ================= -->
+  <section class="screen" id="screen-withdraw">
+    <h1 class="page-title">Withdraw</h1>
+    <div class="balance-card" style="padding:18px 20px;">
+      <div class="balance-label">Available to withdraw</div>
+      <div class="balance-value" style="font-size:30px;"><span id="wBalance">0</span><span class="unit">bananas</span></div>
+      <div class="card-sub">Minimum withdrawal: <b style="color:var(--text)">500 bananas</b></div>
+    </div>
+
+    <div class="field-label">Amount</div>
+    <div class="amount-input-wrap">
+      <span>#</span>
+      <input type="number" id="wAmount" placeholder="0" min="0" oninput="validateWithdraw()"/>
+    </div>
+
+    <div class="field-label">Payout method</div>
+    <div class="method-fixed">
+      <div class="method-fixed-icon">₮</div>
+      <div class="card-body">
+        <div class="card-title">USDT</div>
+        <div class="card-sub">BEP20 network (BNB Smart Chain)</div>
+      </div>
+      <div class="reward-tag">Only method</div>
+    </div>
+
+    <div class="field-label">USDT (BEP20) wallet address</div>
+    <input class="modal-input" id="wWallet" style="text-transform:none; letter-spacing:normal; text-align:left; font-size:13.5px;" placeholder="0x..." oninput="validateWithdraw()" />
+    <div class="card-sub" style="margin-top:6px;">Double-check your address — sending to the wrong network can permanently lose funds.</div>
+
+    <button class="btn btn-primary btn-block" style="margin-top:18px;" id="withdrawBtn" onclick="submitWithdraw()" disabled>Request withdrawal</button>
+    <div class="card-sub" style="text-align:center; margin-top:8px;">Payouts are simulated in this preview — connect a real USDT (BEP20) payout processor to send actual funds.</div>
+
+    <h1 class="page-title">History</h1>
+    <div class="card" style="flex-direction:column; align-items:stretch;" id="historyCard">
+      <div class="empty-hist" id="historyEmpty">No withdrawals yet</div>
+      <div id="historyList"></div>
+    </div>
+  </section>
+
+  <nav class="navbar">
+    <button class="nav-btn active" data-tab="home" onclick="goTo('home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+      Home
+    </button>
+    <button class="nav-btn" data-tab="ads" onclick="goTo('ads')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg>
+      Ads
+    </button>
+    <button class="nav-btn" data-tab="task" onclick="goTo('task')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12.5 2.3 2.3L16 9.7"/></svg>
+      Task
+    </button>
+    <button class="nav-btn" data-tab="invite" onclick="goTo('invite')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5.2 5.5-5.2s5.5 2.2 5.5 5.2"/><path d="M16.5 8.2a3 3 0 1 1 .5 6"/><path d="M19 13.4c2 .3 3.5 2.1 3.5 4.3"/></svg>
+      Invite
+    </button>
+    <button class="nav-btn" data-tab="withdraw" onclick="goTo('withdraw')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="13" rx="2.5"/><path d="M2.5 10.5h19"/><path d="M6 15h4"/></svg>
+      Withdraw
+    </button>
+  </nav>
+
+</div>
+
+<!-- ---------- Promo Code modal ---------- -->
+<div class="modal-overlay" id="promoOverlay" onclick="if(event.target===this) closePromoModal()">
+  <div class="modal-sheet" style="position:relative;">
+    <button class="modal-close" onclick="closePromoModal()">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">Redeem promo code</div>
+    <div class="modal-sub">Enter a code to claim bonus bananas.</div>
+    <input class="modal-input" id="promoInput" placeholder="ENTER CODE" maxlength="20" />
+    <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="redeemPromo()">Redeem</button>
+  </div>
+</div>
+
+<!-- ---------- Spin Wheel modal ---------- -->
+<div class="modal-overlay" id="spinOverlay" onclick="if(event.target===this) closeSpinModal()">
+  <div class="modal-sheet" style="position:relative;">
+    <button class="modal-close" onclick="closeSpinModal()">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">Spin the wheel</div>
+    <div class="modal-sub" id="spinSub">One free spin per day &middot; win up to 200 bananas.</div>
+    <div class="wheel-wrap">
+      <div class="wheel-pointer"></div>
+      <div class="wheel" id="wheel">
+        <div class="wheel-center">🎡</div>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-block" style="margin-top:16px;" id="spinBtn" onclick="spinWheel()">Spin now</button>
+  </div>
+</div>
+
+<!-- ---------- Games modal ---------- -->
+<div class="modal-overlay" id="gameOverlay" onclick="if(event.target===this) closeGameModal()">
+  <div class="modal-sheet modal-sheet-tall" style="position:relative;">
+    <button class="modal-close" onclick="closeGameModal()">✕</button>
+    <div class="modal-handle"></div>
+    <div id="gameContent"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ---------------- Telegram WebApp bootstrap ---------------- */
+const tg = window.Telegram ? window.Telegram.WebApp : null;
+if (tg) { tg.ready(); tg.expand(); }
+
+/* ---------------- Firebase (optional — powers the admin withdrawal queue) ----------------
+   Fill this in with your own Firebase project's config (see setup guide) and paste the
+   SAME config into admin.html. Until you do, the app keeps working fully in local demo
+   mode — withdrawals just won't appear in the admin panel. */
+const firebaseConfig = {
+  apiKey: "AIzaSyAi7YJZLgfDds9m08n2zsrUg48I8fzQbi0",
+  authDomain: "banana-farm-947b5.firebaseapp.com",
+  projectId: "banana-farm-947b5",
+  storageBucket: "banana-farm-947b5.firebasestorage.app",
+  messagingSenderId: "1049262664752",
+  appId: "1:1049262664752:web:14b53fbb89e3b1d6c7d1f5"
+};
+let db = null;
+if (firebaseConfig.apiKey !== "YOUR_API_KEY"){
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+  } catch (e) {
+    console.warn('Firebase not initialized:', e);
+  }
+}
+function currentTelegramUser(){
+  const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  if (!u) return { id: 'demo_user', name: 'Demo user' };
+  return { id: String(u.id), name: (u.username ? '@' + u.username : (u.first_name || 'User')) };
+}
+
+/* ---------------- Firestore user sync (balance, progress) ---------------- */
+let currentUserDocId = null;
+async function loadUserFromFirestore(){
+  if (!db) return;
+  const user = currentTelegramUser();
+  currentUserDocId = user.id;
+  try {
+    const docRef = db.collection('users').doc(currentUserDocId);
+    const snap = await docRef.get();
+    if (snap.exists){
+      const d = snap.data();
+      if (typeof d.balance === 'number') state.balance = d.balance;
+      if (typeof d.totalEarned === 'number') state.totalEarned = d.totalEarned;
+      if (typeof d.todayEarned === 'number') state.todayEarned = d.todayEarned;
+      if (typeof d.friendsInvited === 'number') state.friendsInvited = d.friendsInvited;
+      if (typeof d.adsWatchedToday === 'number') state.adsWatchedToday = d.adsWatchedToday;
+      state.completedTaskIds = d.completedTaskIds || [];
+      state.redeemedCodes = d.redeemedCodes || [];
+      if (d.status === 'suspended') return 'suspended';
+    } else {
+      await docRef.set({
+        username: user.name,
+        balance: state.balance,
+        totalEarned: state.totalEarned,
+        todayEarned: state.todayEarned,
+        friendsInvited: state.friendsInvited,
+        adsWatchedToday: state.adsWatchedToday,
+        completedTaskIds: state.completedTaskIds,
+        redeemedCodes: state.redeemedCodes,
+        status: 'active',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  } catch (e) {
+    console.warn('Could not load user from Firestore:', e);
+  }
+}
+function syncUserState(){
+  if (!db || !currentUserDocId) return;
+  const user = currentTelegramUser();
+  db.collection('users').doc(currentUserDocId).set({
+    username: user.name,
+    balance: state.balance,
+    totalEarned: state.totalEarned,
+    todayEarned: state.todayEarned,
+    friendsInvited: state.friendsInvited,
+    adsWatchedToday: state.adsWatchedToday,
+    completedTaskIds: state.completedTaskIds,
+    redeemedCodes: state.redeemedCodes,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true }).catch(e => console.warn('Could not sync user state:', e));
+}
+
+/* ---------------- Firestore-backed tasks (falls back to local list above) ---------------- */
+function loadTasksFromFirestore(){
+  if (!db) return;
+  db.collection('tasks').where('active', '==', true).onSnapshot(snap => {
+    if (snap.empty) return; // keep local fallback list if admin hasn't added any tasks yet
+    state.tasks = snap.docs.map(d => {
+      const data = d.data();
+      return {
+        id: d.id,
+        category: data.category || 'official',
+        title: data.title || '',
+        sub: data.sub || '',
+        reward: data.reward || 0,
+        done: state.completedTaskIds.includes(d.id)
+      };
+    });
+    state.tasksDone = state.tasks.filter(t => t.done).length;
+    renderTasks();
+  }, err => console.warn('Tasks listener error:', err));
+}
+
+/* ---------------- In-memory app state (demo only, no backend) ---------------- */
+const state = {
+  balance: 1240,
+  totalEarned: 3860,
+  todayEarned: 60,
+  adsWatchedToday: 3,
+  adsDailyLimit: 10,
+  friendsInvited: 3,
+  tasksDone: 1,
+  taskCategory: 'official',
+  history: [],
+  completedTaskIds: [],
+  redeemedCodes: [],
+  tasks: [
+    { id:'t1', category:'official', title:'Daily check-in', sub:'Open the app once today', reward:10, done:true },
+    { id:'t2', category:'official', title:'Join our Telegram channel', sub:'Stay updated on new offers', reward:30, done:false },
+    { id:'t3', category:'official', title:'Rate the app', sub:'Leave a quick rating', reward:50, done:false },
+
+    { id:'t4', category:'bot', title:'Start @Bananafarmapp_bot', sub:'Say hi to the bot once', reward:15, done:false },
+    { id:'t5', category:'bot', title:'Enable bot notifications', sub:'Get reminders for new tasks', reward:20, done:false },
+    { id:'t6', category:'bot', title:'Play the daily bot quiz', sub:'One question, one shot', reward:25, done:false },
+
+    { id:'t7', category:'partner', title:'Follow on X', sub:'Sponsored · one-time task', reward:30, done:false },
+    { id:'t8', category:'partner', title:'Install partner app', sub:'Sponsored · open once to confirm', reward:150, done:false },
+    { id:'t9', category:'partner', title:'Join partner channel', sub:'Sponsored · stay subscribed 24h', reward:40, done:false },
+  ]
+};
+
+function fmt(n){ return n.toLocaleString('en-US'); }
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._h);
+  showToast._h = setTimeout(()=> t.classList.remove('show'), 1800);
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+}
+
+/* ---------------- Navigation ---------------- */
+function goTo(tab){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + tab).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+}
+
+/* ---------------- Render ---------------- */
+function render(){
+  document.getElementById('homeBalance').textContent = fmt(state.balance);
+  document.getElementById('todayEarned').textContent = fmt(state.todayEarned);
+
+  document.getElementById('adsWatchedLbl').textContent = state.adsWatchedToday;
+  document.getElementById('adsLimitLbl').textContent = state.adsDailyLimit;
+  const pct = Math.min(1, state.adsWatchedToday / state.adsDailyLimit);
+  const ring = document.getElementById('adRing');
+  const circumference = 106.8;
+  ring.setAttribute('stroke-dashoffset', circumference * (1 - pct));
+
+  const watchBtn = document.getElementById('watchAdBtn');
+  if (state.adsWatchedToday >= state.adsDailyLimit){
+    watchBtn.disabled = true;
+    watchBtn.textContent = 'Daily ad limit reached';
+  }
+
+  renderTasks();
+  document.getElementById('inviteFriendsCount').textContent = state.friendsInvited;
+  document.getElementById('wBalance').textContent = fmt(state.balance);
+  renderHistory();
+  validateWithdraw();
+}
+
+function selectTaskCategory(cat){
+  state.taskCategory = cat;
+  document.querySelectorAll('.tab-chip').forEach(c => c.classList.toggle('active', c.dataset.cat === cat));
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+  renderTasks();
+}
+
+function renderTasks(){
+  // per-category counts (pending tasks)
+  ['official','bot','partner'].forEach(cat => {
+    const pending = state.tasks.filter(t => t.category === cat && !t.done).length;
+    const el = document.getElementById('cnt-' + cat);
+    if (el) el.textContent = pending;
+  });
+
+  const list = document.getElementById('taskList');
+  list.innerHTML = '';
+  const filtered = state.tasks.filter(t => t.category === state.taskCategory);
+
+  if (filtered.length === 0){
+    list.innerHTML = '<div class="category-empty">No tasks in this category right now</div>';
+    return;
+  }
+
+  filtered.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'card';
+    row.style.cursor = t.done ? 'default' : 'pointer';
+    row.innerHTML = `
+      <div class="task-check ${t.done ? 'done' : ''}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+      <div class="card-body">
+        <div class="card-title">${t.title}</div>
+        <div class="card-sub">${t.sub}</div>
+      </div>
+      <div class="reward-tag">${t.done ? 'Done' : '+' + t.reward}</div>
+    `;
+    if (!t.done){
+      row.onclick = () => completeTask(t.id);
+    }
+    list.appendChild(row);
+  });
+}
+
+function completeTask(id){
+  const t = state.tasks.find(x => x.id === id);
+  if (!t || t.done) return;
+  t.done = true;
+  state.balance += t.reward;
+  state.totalEarned += t.reward;
+  state.todayEarned += t.reward;
+  state.tasksDone += 1;
+  if (!state.completedTaskIds.includes(id)) state.completedTaskIds.push(id);
+  showToast('Task complete · +' + t.reward + ' bananas');
+  syncUserState();
+  render();
+}
+
+/* ---------------- Ads ---------------- */
+let adInProgress = false;
+function watchAd(){
+  if (adInProgress || state.adsWatchedToday >= state.adsDailyLimit) return;
+  adInProgress = true;
+  const btn = document.getElementById('watchAdBtn');
+  const label = document.getElementById('adTimerLabel');
+  let secs = 3;
+  btn.disabled = true;
+  btn.textContent = 'Playing ad… ' + secs + 's';
+  label.textContent = 'Ad playing — reward unlocks at 0s';
+  const iv = setInterval(() => {
+    secs -= 1;
+    if (secs <= 0){
+      clearInterval(iv);
+      state.adsWatchedToday += 1;
+      state.balance += 20;
+      state.totalEarned += 20;
+      state.todayEarned += 20;
+      adInProgress = false;
+      label.textContent = '~15 seconds · instant reward';
+      btn.textContent = 'Watch ad';
+      btn.disabled = state.adsWatchedToday >= state.adsDailyLimit;
+      showToast('Ad reward · +20 bananas');
+      render();
+    } else {
+      btn.textContent = 'Playing ad… ' + secs + 's';
+    }
+  }, 700);
+}
+
+/* ---------------- Invite ---------------- */
+const BOT_USERNAME = 'Bananafarmapp_bot';
+
+function getReferralCode(){
+  const tgUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  if (tgUser && tgUser.id) return 'ref_' + tgUser.id;
+  return 'ref_' + Math.random().toString(36).slice(2, 8);
+}
+const referralCode = getReferralCode();
+const referralLink = 'https://t.me/' + BOT_USERNAME + '?start=' + referralCode;
+
+function initReferralDisplay(){
+  const el = document.getElementById('refCode');
+  if (el) el.textContent = 't.me/' + BOT_USERNAME + '?start=' + referralCode;
+}
+
+function copyCode(){
+  if (navigator.clipboard) navigator.clipboard.writeText(referralLink).catch(()=>{});
+  showToast('Invite link copied');
+}
+function shareInvite(){
+  if (tg && tg.openTelegramLink){
+    tg.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(referralLink) + '&text=' + encodeURIComponent('Join me on Banana Farm and earn bananas!'));
+  } else {
+    showToast('Invite link copied');
+    if (navigator.clipboard) navigator.clipboard.writeText(referralLink).catch(()=>{});
+  }
+}
+
+/* ---------------- Withdraw ---------------- */
+const MIN_WITHDRAW = 500;
+const BEP20_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+function validateWithdraw(){
+  const amtInput = document.getElementById('wAmount');
+  const walletInput = document.getElementById('wWallet');
+  const btn = document.getElementById('withdrawBtn');
+  const amt = Number(amtInput.value || 0);
+  const walletOk = BEP20_ADDRESS_RE.test((walletInput.value || '').trim());
+  btn.disabled = !(amt >= MIN_WITHDRAW && amt <= state.balance && walletOk);
+}
+function submitWithdraw(){
+  const amtInput = document.getElementById('wAmount');
+  const walletInput = document.getElementById('wWallet');
+  const amt = Number(amtInput.value || 0);
+  const wallet = (walletInput.value || '').trim();
+  if (!(amt >= MIN_WITHDRAW && amt <= state.balance && BEP20_ADDRESS_RE.test(wallet))) return;
+  state.balance -= amt;
+  state.history.unshift({ amount: amt, wallet: wallet, status: 'pending', date: 'Just now' });
+  amtInput.value = '';
+  walletInput.value = '';
+  showToast('Withdrawal requested · ' + fmt(amt) + ' bananas');
+  syncUserState();
+  render();
+
+  if (db){
+    const user = currentTelegramUser();
+    db.collection('withdrawals').add({
+      userId: user.id,
+      username: user.name,
+      amount: amt,
+      wallet: wallet,
+      network: 'BEP20',
+      status: 'pending',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(e => console.warn('Could not sync withdrawal to admin queue:', e));
+  }
+}
+function renderHistory(){
+  const listEl = document.getElementById('historyList');
+  const emptyEl = document.getElementById('historyEmpty');
+  listEl.innerHTML = '';
+  if (state.history.length === 0){
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  state.history.forEach(h => {
+    const row = document.createElement('div');
+    row.className = 'hist-row';
+    const shortWallet = h.wallet ? (h.wallet.slice(0,6) + '…' + h.wallet.slice(-4)) : '';
+    row.innerHTML = `
+      <div><div style="font-weight:600;">${fmt(h.amount)} bananas</div><div class="card-sub">USDT (BEP20) · ${shortWallet} · ${h.date}</div></div>
+      <div class="status-pill status-${h.status}">${h.status}</div>
+    `;
+    listEl.appendChild(row);
+  });
+}
+
+/* ---------------- Promo code modal ---------------- */
+const VALID_PROMOS = { 'WELCOME50': 50, 'BANANA100': 100 };
+
+function openPromoModal(){
+  document.getElementById('promoOverlay').classList.add('show');
+  document.getElementById('promoInput').value = '';
+  document.getElementById('promoInput').focus();
+}
+function closePromoModal(){
+  document.getElementById('promoOverlay').classList.remove('show');
+}
+async function redeemPromo(){
+  const input = document.getElementById('promoInput');
+  const code = input.value.trim().toUpperCase();
+  if (!code) return;
+  if (state.redeemedCodes.includes(code)){
+    showToast('Code already used');
+    return;
+  }
+  let reward = null;
+  if (db){
+    try {
+      const snap = await db.collection('promoCodes').doc(code).get();
+      if (snap.exists && snap.data().active !== false){
+        reward = snap.data().reward;
+      }
+    } catch (e) {
+      console.warn('Promo lookup failed, falling back to local list:', e);
+    }
+  }
+  if (reward == null && VALID_PROMOS[code] !== undefined){
+    reward = VALID_PROMOS[code];
+  }
+  if (reward != null){
+    state.redeemedCodes.push(code);
+    state.balance += reward;
+    state.totalEarned += reward;
+    state.todayEarned += reward;
+    showToast('Promo redeemed · +' + reward + ' bananas');
+    closePromoModal();
+    syncUserState();
+    if (db){
+      db.collection('promoCodes').doc(code).set(
+        { redemptionCount: firebase.firestore.FieldValue.increment(1) }, { merge: true }
+      ).catch(() => {});
+    }
+    render();
+  } else {
+    showToast('Invalid or expired code');
+  }
+}
+
+/* ---------------- Spin wheel ---------------- */
+const WHEEL_SEGMENTS = [
+  { label:'10',  reward:10,  color:'#ffce45' },
+  { label:'25',  reward:25,  color:'#3ecf8e' },
+  { label:'0',   reward:0,   color:'#5f5880' },
+  { label:'50',  reward:50,  color:'#ef6f6c' },
+  { label:'15',  reward:15,  color:'#8b84ff' },
+  { label:'200', reward:200, color:'#ffd98a' },
+  { label:'20',  reward:20,  color:'#3ecf8e' },
+  { label:'5',   reward:5,   color:'#322a52' },
+];
+let wheelBuilt = false;
+let spinning = false;
+let wheelRotation = 0;
+
+function buildWheel(){
+  if (wheelBuilt) return;
+  wheelBuilt = true;
+  const seg = 360 / WHEEL_SEGMENTS.length;
+  const stops = WHEEL_SEGMENTS.map((s,i) => `${s.color} ${i*seg}deg ${(i+1)*seg}deg`).join(', ');
+  const wheel = document.getElementById('wheel');
+  wheel.style.background = `conic-gradient(${stops})`;
+  WHEEL_SEGMENTS.forEach((s,i) => {
+    const lbl = document.createElement('div');
+    lbl.className = 'wheel-label';
+    lbl.textContent = s.label;
+    const angle = seg * i + seg/2;
+    lbl.style.transform = `rotate(${angle}deg) translate(-50%, 0)`;
+    wheel.appendChild(lbl);
+  });
+}
+
+function openSpinModal(){
+  buildWheel();
+  document.getElementById('spinOverlay').classList.add('show');
+  const btn = document.getElementById('spinBtn');
+  const sub = document.getElementById('spinSub');
+  if (state.spunToday){
+    btn.disabled = true;
+    btn.textContent = 'Come back tomorrow';
+    sub.textContent = "You already used today's free spin.";
+  } else {
+    btn.disabled = false;
+    btn.textContent = 'Spin now';
+    sub.textContent = 'One free spin per day · win up to 200 bananas.';
+  }
+}
+function closeSpinModal(){
+  document.getElementById('spinOverlay').classList.remove('show');
+}
+function spinWheel(){
+  if (spinning || state.spunToday) return;
+  spinning = true;
+  const btn = document.getElementById('spinBtn');
+  btn.disabled = true;
+  btn.textContent = 'Spinning…';
+
+  const seg = 360 / WHEEL_SEGMENTS.length;
+  const winIndex = Math.floor(Math.random() * WHEEL_SEGMENTS.length);
+  // land the pointer (fixed at top) on the middle of winIndex segment
+  const targetAngle = 360 * 5 + (360 - (winIndex * seg + seg/2));
+  wheelRotation = targetAngle;
+  const wheel = document.getElementById('wheel');
+  wheel.style.transform = `rotate(${wheelRotation}deg)`;
+
+  setTimeout(() => {
+    const reward = WHEEL_SEGMENTS[winIndex].reward;
+    state.spunToday = true;
+    spinning = false;
+    if (reward > 0){
+      state.balance += reward;
+      state.totalEarned += reward;
+      state.todayEarned += reward;
+      showToast('Wheel landed on +' + reward + ' bananas 🎉');
+    } else {
+      showToast('No luck this time — try again tomorrow');
+    }
+    btn.textContent = 'Come back tomorrow';
+    render();
+  }, 3300);
+}
+
+/* ---------------- Games ---------------- */
+function creditReward(amount, msg){
+  if (amount > 0){
+    state.balance += amount;
+    state.totalEarned += amount;
+    state.todayEarned += amount;
+  }
+  if (msg) showToast(msg);
+  syncUserState();
+  render();
+}
+
+function openGameModal(){
+  document.getElementById('gameOverlay').classList.add('show');
+  renderGameHub();
+}
+function closeGameModal(){
+  document.getElementById('gameOverlay').classList.remove('show');
+}
+function renderGameHub(){
+  document.getElementById('gameContent').innerHTML = `
+    <div class="modal-title">Games</div>
+    <div class="modal-sub">Pick a game and start earning bananas.</div>
+    <div class="card" style="cursor:pointer;" onclick="restartTttWithAd()">
+      <div class="icon-badge" style="background:var(--gold-soft);">❌⭕</div>
+      <div class="card-body"><div class="card-title">Tic Tac Toe</div><div class="card-sub">Beat the bot to win bananas</div></div>
+      <div class="reward-tag">+30</div>
+    </div>
+    <div class="card" style="cursor:pointer;" onclick="openMines()">
+      <div class="icon-badge" style="background:rgba(239,111,108,0.15);">💣</div>
+      <div class="card-body"><div class="card-title">Mines</div><div class="card-sub">Reveal tiles, cash out before you bust</div></div>
+      <div class="reward-tag">up to +160</div>
+    </div>
+  `;
+}
+function backButtonHtml(){
+  return `<button class="game-back" onclick="renderGameHub()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    All games
+  </button>`;
+}
+
+/* ----- Tic Tac Toe ----- */
+let tttBoard, tttOver;
+function openTicTacToe(){ tttBoard = Array(9).fill(''); tttOver = false; renderTicTacToe(''); }
+
+/* Shared interstitial ad simulation, reused by any game action that should be ad-gated */
+function playInterstitialAd(onComplete, seconds){
+  const secsStart = seconds || 3;
+  let secs = secsStart;
+  const content = document.getElementById('gameContent');
+  content.innerHTML = `
+    <div class="modal-title">Ad</div>
+    <div class="modal-sub" id="interstitialAdSub">Showing ad… ${secs}s</div>
+    <div style="display:flex;align-items:center;justify-content:center;height:180px;background:var(--surface);border:1px solid var(--border);border-radius:16px;font-size:42px;">📺</div>
+  `;
+  const iv = setInterval(() => {
+    secs -= 1;
+    const sub = document.getElementById('interstitialAdSub');
+    if (secs <= 0){
+      clearInterval(iv);
+      onComplete();
+    } else if (sub){
+      sub.textContent = 'Showing ad… ' + secs + 's';
+    }
+  }, 700);
+}
+function restartTttWithAd(){
+  playInterstitialAd(() => openTicTacToe());
+}
+function renderTicTacToe(status, statusClass){
+  const content = document.getElementById('gameContent');
+  content.innerHTML = `
+    ${backButtonHtml()}
+    <div class="modal-title">Tic Tac Toe</div>
+    <div class="modal-sub">You're X · this bot plays hard — win to earn +30 bananas.</div>
+    <div class="game-status ${statusClass || ''}">${status || 'Your move'}</div>
+    <div class="ttt-grid" id="tttGrid"></div>
+    <button class="btn btn-ghost btn-block" style="margin-top:16px;" onclick="restartTttWithAd()">Start game🎬</button>
+  `;
+  const grid = document.getElementById('tttGrid');
+  grid.innerHTML = '';
+  tttBoard.forEach((val, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'ttt-cell' + (val === 'O' ? ' o' : '');
+    cell.textContent = val;
+    if (!val && !tttOver) cell.onclick = () => tttMove(i);
+    grid.appendChild(cell);
+  });
+}
+function tttWinner(b){
+  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for (const [a,b1,c] of lines){ if (b[a] && b[a]===b[b1] && b[a]===b[c]) return b[a]; }
+  return b.every(x => x) ? 'draw' : null;
+}
+function tttMinimax(board, depth, isMaximizing){
+  const result = tttWinner(board);
+  if (result === 'O') return 10 - depth;
+  if (result === 'X') return depth - 10;
+  if (result === 'draw') return 0;
+
+  if (isMaximizing){
+    let best = -Infinity;
+    for (let i = 0; i < 9; i++){
+      if (!board[i]){
+        board[i] = 'O';
+        best = Math.max(best, tttMinimax(board, depth + 1, false));
+        board[i] = '';
+      }
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (let i = 0; i < 9; i++){
+      if (!board[i]){
+        board[i] = 'X';
+        best = Math.min(best, tttMinimax(board, depth + 1, true));
+        board[i] = '';
+      }
+    }
+    return best;
+  }
+}
+function tttBestMove(board){
+  let bestScore = -Infinity;
+  let bestMoves = [];
+  for (let i = 0; i < 9; i++){
+    if (!board[i]){
+      board[i] = 'O';
+      const score = tttMinimax(board, 0, false);
+      board[i] = '';
+      if (score > bestScore){ bestScore = score; bestMoves = [i]; }
+      else if (score === bestScore){ bestMoves.push(i); }
+    }
+  }
+  // tie-break randomly among equally optimal moves so play doesn't feel scripted
+  return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+}
+const TTT_BOT_SKILL = 0.8; // hard but not unbeatable: plays optimally ~80% of the time
+function tttBotMove(board){
+  if (Math.random() < TTT_BOT_SKILL){
+    return tttBestMove(board);
+  }
+  const empties = board.map((v, idx) => v ? null : idx).filter(v => v !== null);
+  return empties[Math.floor(Math.random() * empties.length)];
+}
+function tttMove(i){
+  if (tttBoard[i] || tttOver) return;
+  tttBoard[i] = 'X';
+  let result = tttWinner(tttBoard);
+  if (result){ return tttFinish(result); }
+
+  const botIdx = tttBotMove(tttBoard);
+  tttBoard[botIdx] = 'O';
+  result = tttWinner(tttBoard);
+  if (result){ return tttFinish(result); }
+
+  renderTicTacToe('Your move');
+}
+function tttFinish(result){
+  tttOver = true;
+  if (result === 'X'){ renderTicTacToe('You win! +30 bananas', 'win'); creditReward(30, 'Tic Tac Toe · +30 bananas'); }
+  else if (result === 'O'){ renderTicTacToe('Bot wins — try again', 'lose'); }
+  else { renderTicTacToe("It's a draw — tough bot!", ''); }
+}
+
+/* ----- Mines ----- */
+const MINES_TOTAL = 25, MINES_COUNT = 5, MINES_STEP = 8;
+let minesLayout, minesRevealed, minesPotential, minesOver;
+function openMines(){
+  minesLayout = Array(MINES_TOTAL).fill(false);
+  let placed = 0;
+  while (placed < MINES_COUNT){
+    const i = Math.floor(Math.random()*MINES_TOTAL);
+    if (!minesLayout[i]){ minesLayout[i] = true; placed++; }
+  }
+  minesRevealed = Array(MINES_TOTAL).fill(false);
+  minesPotential = 0;
+  minesOver = false;
+  renderMines('Tap tiles to reveal bananas. Avoid the mines.');
+}
+function renderMines(status, statusClass){
+  const content = document.getElementById('gameContent');
+  content.innerHTML = `
+    ${backButtonHtml()}
+    <div class="modal-title">Mines</div>
+    <div class="mines-topline">
+      <span class="modal-sub" style="margin:0;">${status || ''}</span>
+      <span class="mines-potential">+${minesPotential}</span>
+    </div>
+    <div class="mines-grid" id="minesGrid"></div>
+    <button class="btn btn-primary btn-block" id="cashOutBtn" onclick="cashOutMines()" ${(minesPotential===0||minesOver)?'disabled':''}>Cash out ${minesPotential>0?('· +'+minesPotential):''}</button>
+    <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="openMines()">Start game🎬</button>
+  `;
+  const grid = document.getElementById('minesGrid');
+  grid.innerHTML = '';
+  minesLayout.forEach((isMine, i) => {
+    const cell = document.createElement('div');
+    const revealed = minesRevealed[i];
+    cell.className = 'mine-cell' + (revealed ? (isMine ? ' boom' : ' safe') : '') + (minesOver && !revealed ? ' disabled' : '');
+    if (revealed) cell.textContent = isMine ? '💥' : '💎';
+    if (!revealed && !minesOver) cell.onclick = () => revealMine(i);
+    grid.appendChild(cell);
+  });
+}
+function revealMine(i){
+  if (minesOver || minesRevealed[i]) return;
+  minesRevealed[i] = true;
+  if (minesLayout[i]){
+    minesOver = true;
+    minesLayout.forEach((m,idx)=>{ if(m) minesRevealed[idx] = true; });
+    renderMines('Boom — you hit a mine. Round lost.', 'lose');
+  } else {
+    minesPotential += MINES_STEP;
+    renderMines('Nice — keep going or cash out.');
+  }
+}
+function cashOutMines(){
+  if (minesOver || minesPotential === 0) return;
+  const amount = minesPotential;
+  minesOver = true;
+  playInterstitialAd(() => {
+    renderMines('Cashed out! +' + amount + ' bananas', 'win');
+    creditReward(amount, 'Mines · +' + amount + ' bananas');
+  });
+}
+
+async function initApp(){
+  const status = await loadUserFromFirestore();
+  if (status === 'suspended'){
+    document.getElementById('app').innerHTML = `
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; text-align:center; padding:30px;">
+        <div style="font-size:44px; margin-bottom:14px;">🚫</div>
+        <div style="font-family:var(--font-display); font-size:18px; font-weight:700; margin-bottom:8px;">Account suspended</div>
+        <div style="color:var(--muted); font-size:13.5px; max-width:280px;">Your account has been suspended. Contact support if you think this is a mistake.</div>
+      </div>`;
+    return;
+  }
+  loadTasksFromFirestore();
+  initReferralDisplay();
+  render();
+}
+initApp();
+</script>
+</body>
+</html>
